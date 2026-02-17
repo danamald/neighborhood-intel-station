@@ -214,6 +214,10 @@
       <div class="sdr-pulse" id="sdr-pulse"></div>
       <span id="sdr-status-text">📡 SDR IDLE — Waiting for next pass</span>
     </div>
+    <div id="iss-overhead-line" style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--text-dim);padding:4px 0 0 0;display:flex;justify-content:space-between;align-items:center;">
+      <span>🛸 ISS: <span id="iss-overhead-dist" style="color:var(--iss-color);">--</span> km away</span>
+      <span id="iss-overhead-status" style="color:var(--text-dim);">--</span>
+    </div>
   </div>
   <!-- WEATHER -->
   <div class="card card-weather">
@@ -298,6 +302,7 @@
       <button class="btn btn-primary" onclick="pushToEpaper('dashboard')">Push Dashboard</button>
       <button class="btn" onclick="pushToEpaper('satellite')">Push Sat Image</button>
       <button class="btn" onclick="pushToEpaper('weather')">Push Weather</button>
+      <button class="btn" id="btn-random" onclick="toggleRandom()">Push Random</button>
     </div>
     <div class="config-section">
       <div class="config-row"><span class="config-label">Node IP</span><span class="config-value">192.168.1.220</span></div>
@@ -352,6 +357,19 @@ const CONFIG = {
 const MAP = { latMin: 28.5, latMax: 30.5, lonMin: -96.5, lonMax: -93.5 };
 let backendOnline = false, issData = {lat:0,lon:0}, aircraftData = [], crewData = [];
 
+function updateNextPass(passData) {
+  if (!passData) return;
+  CONFIG.nextPass.satellite = passData.satellite;
+  CONFIG.nextPass.utcTime = passData.utcTime;
+  CONFIG.nextPass.maxEl = passData.maxEl;
+  document.getElementById('sat-next-name').textContent = passData.satellite;
+  const pt = new Date(passData.utcTime);
+  const utcStr = pt.toISOString().substring(11,16) + ' UTC';
+  const cstStr = pt.toLocaleString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',hour12:true}) + ' CST';
+  document.getElementById('sat-next-time').textContent = `${utcStr} — ${cstStr}`;
+  document.getElementById('sat-max-el').textContent = `Max El: ${passData.maxEl}°`;
+}
+
 // CLOCK
 function updateClock() {
   const now = new Date();
@@ -383,6 +401,40 @@ function updateCountdown() {
   }
 }
 setInterval(updateCountdown, 1000); updateCountdown();
+
+// ISS OVERHEAD TRACKER
+function updateISSOverhead() {
+  const distEl = document.getElementById('iss-overhead-dist');
+  const statusEl = document.getElementById('iss-overhead-status');
+  const lineEl = document.getElementById('iss-overhead-line');
+  if (!distEl || !statusEl) return;
+  
+  const dist = parseFloat(document.getElementById('iss-dist-big')?.textContent) || 0;
+  distEl.textContent = dist ? Math.round(dist).toLocaleString() : '--';
+  
+  if (dist > 0 && dist < 500) {
+    statusEl.textContent = '🔴 OVERHEAD NOW!';
+    statusEl.style.color = 'var(--accent-red)';
+    distEl.style.color = 'var(--accent-red)';
+    lineEl.style.background = 'rgba(255,0,0,0.1)';
+  } else if (dist > 0 && dist < 1500) {
+    statusEl.textContent = '🟡 APPROACHING';
+    statusEl.style.color = 'var(--accent-yellow, #ffd700)';
+    distEl.style.color = 'var(--accent-yellow, #ffd700)';
+    lineEl.style.background = 'rgba(255,215,0,0.05)';
+  } else if (dist > 0 && dist < 3000) {
+    statusEl.textContent = 'Nearby';
+    statusEl.style.color = 'var(--iss-color)';
+    distEl.style.color = 'var(--iss-color)';
+    lineEl.style.background = 'transparent';
+  } else {
+    statusEl.textContent = 'In orbit';
+    statusEl.style.color = 'var(--text-dim)';
+    distEl.style.color = 'var(--iss-color)';
+    lineEl.style.background = 'transparent';
+  }
+}
+setInterval(updateISSOverhead, 5000);
 
 // WEATHER
 async function fetchWeather() {
@@ -438,6 +490,8 @@ async function fetchBackend() {
     }
     aircraftData = data.aircraft || [];
     document.getElementById('ac-count').textContent = aircraftData.length;
+    // Update next pass from backend
+    if (data.next_pass) { updateNextPass(data.next_pass); }
     const sorted = [...aircraftData].sort((a,b) =>
       Math.hypot(a.lat-CONFIG.home.lat,a.lon-CONFIG.home.lon) - Math.hypot(b.lat-CONFIG.home.lat,b.lon-CONFIG.home.lon));
     document.getElementById('ac-list').innerHTML = sorted.slice(0,12).map(ac => `
@@ -513,10 +567,39 @@ function drawAirspaceMap() {
 // E-PAPER
 async function pushToEpaper(mode) {
   addLog('sys',`Pushing ${mode} to e-Paper...`);
+  // Any non-random push resets the random button
+  if(mode !== 'random') {
+    document.getElementById('btn-random').textContent = 'Push Random';
+    document.getElementById('btn-random').style.background = '';
+  }
   if(!backendOnline){addLog('sys','Backend offline — cannot push');return;}
   try{const r=await fetch(`${CONFIG.backend.url}/api/push/${mode}`,{method:'POST'});const d=await r.json();
   if(d.success){addLog('sys',`e-Paper updated: ${mode}`);document.getElementById('epaper-last').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago'});}
   else addLog('sys',`Push failed: ${d.error}`);}catch(e){addLog('sys',`Push error: ${e.message}`);}
+}
+let randomActive = false;
+async function toggleRandom() {
+  if(!backendOnline){addLog('sys','Backend offline — cannot push');return;}
+  try {
+    const r = await fetch(`${CONFIG.backend.url}/api/push/random`,{method:'POST'});
+    const d = await r.json();
+    if(d.success) {
+      randomActive = !randomActive;
+      const btn = document.getElementById('btn-random');
+      if(randomActive) {
+        btn.textContent = 'Stop Random';
+        btn.style.background = 'var(--accent-red, #ff4444)';
+        addLog('sys', `Slideshow: ${d.message}`);
+      } else {
+        btn.textContent = 'Push Random';
+        btn.style.background = '';
+        addLog('sys', 'Slideshow stopped');
+      }
+      document.getElementById('epaper-last').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago'});
+    } else {
+      addLog('sys', `Random failed: ${d.error}`);
+    }
+  } catch(e) { addLog('sys', `Random error: ${e.message}`); }
 }
 function sendMeshMessage(){const i=document.getElementById('mesh-input');const m=i.value.trim();if(!m)return;addLog('mesh',`Sent: "${m}"`);i.value='';}
 function updateTLE(){addLog('sat','TLE update requested...');}
