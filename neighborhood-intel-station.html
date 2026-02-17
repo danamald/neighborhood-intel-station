@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neighborhood Intel Station</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Oxanium:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0e14;
+    --bg-secondary: #111720;
+    --bg-card: #151c28;
+    --bg-card-hover: #1a2233;
+    --border: #1e2a3a;
+    --border-glow: #2d4a6f;
+    --text-primary: #e4e8ef;
+    --text-secondary: #7a8ba3;
+    --text-dim: #4a5568;
+    --accent-cyan: #00d4ff;
+    --accent-green: #00ff88;
+    --accent-amber: #ffb800;
+    --accent-red: #ff3355;
+    --accent-purple: #8855ff;
+    --accent-blue: #3388ff;
+    --iss-color: #ff5500;
+    --satellite-glow: #00d4ff33;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Oxanium', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.008) 2px, rgba(0,212,255,0.008) 4px);
+    pointer-events: none; z-index: 1000;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(0,212,255,0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(0,255,136,0.02) 0%, transparent 50%),
+      radial-gradient(circle at 50% 80%, rgba(136,85,255,0.02) 0%, transparent 50%);
+    pointer-events: none; z-index: -1;
+  }
+  .header {
+    padding: 20px 30px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(180deg, rgba(0,212,255,0.04) 0%, transparent 100%);
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo-icon {
+    width: 40px; height: 40px;
+    border: 2px solid var(--accent-cyan); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px var(--satellite-glow);
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 15px var(--satellite-glow); }
+    50% { box-shadow: 0 0 30px var(--satellite-glow), 0 0 60px rgba(0,212,255,0.1); }
+  }
+  .header h1 {
+    font-weight: 700; font-size: 1.3rem;
+    letter-spacing: 2px; text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header-right {
+    display: flex; align-items: center; gap: 20px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary);
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.online { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+  .status-dot.offline { background: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); }
+  .status-dot.waiting { background: var(--accent-amber); box-shadow: 0 0 8px var(--accent-amber); animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .dashboard {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px; padding: 20px 30px; max-width: 1600px; margin: 0 auto;
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; position: relative; overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .card:hover { background: var(--bg-card-hover); border-color: var(--border-glow); }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 12px 12px 0 0; }
+  .card-satellite::before { background: linear-gradient(90deg, var(--accent-cyan), transparent); }
+  .card-weather::before { background: linear-gradient(90deg, var(--accent-green), transparent); }
+  .card-mesh::before { background: linear-gradient(90deg, var(--accent-amber), transparent); }
+  .card-airspace::before { background: linear-gradient(90deg, var(--iss-color), var(--accent-cyan), transparent); }
+  .card-epaper::before { background: linear-gradient(90deg, var(--accent-blue), transparent); }
+  .card-alerts::before { background: linear-gradient(90deg, var(--accent-red), transparent); }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-title { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: var(--text-secondary); }
+  .card-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 3px 8px; border-radius: 4px; letter-spacing: 1px; }
+  .badge-live { background: rgba(0,255,136,0.15); color: var(--accent-green); }
+  .badge-waiting { background: rgba(255,184,0,0.15); color: var(--accent-amber); }
+  .badge-offline { background: rgba(255,51,85,0.15); color: var(--accent-red); }
+  .badge-iss { background: rgba(255,85,0,0.2); color: var(--iss-color); }
+  .card-wide { grid-column: span 3; }
+  .weather-main { display: flex; align-items: center; gap: 20px; margin-bottom: 16px; }
+  .weather-temp { font-size: 3rem; font-weight: 700; line-height: 1; }
+  .weather-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .weather-item { display: flex; flex-direction: column; gap: 2px; }
+  .weather-label { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .weather-value { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-primary); }
+  .sat-image-container { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; height: 140px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; overflow: hidden; }
+  .sat-image-container img { width: 100%; height: 100%; object-fit: cover; }
+  .sat-placeholder { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-align: center; }
+  .sat-next-pass { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .sat-countdown { font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); font-family: 'Oxanium', sans-serif; }
+  .sdr-status-line { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 5px 8px; background: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.15); border-radius: 6px; margin-top: 8px; color: var(--accent-cyan); display: flex; align-items: center; gap: 6px; }
+  .sdr-pulse { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-cyan); animation: sdr-blink 2s infinite; }
+  @keyframes sdr-blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .mesh-nodes { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .mesh-node { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .mesh-node-name { color: var(--accent-amber); }
+  .mesh-node-info { color: var(--text-secondary); }
+  .mesh-message-box { margin-top: 12px; display: flex; gap: 8px; }
+  .mesh-input { flex: 1; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; outline: none; }
+  .mesh-input:focus { border-color: var(--accent-amber); }
+  .airspace-map-wrap { position: relative; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; height: 200px; margin-bottom: 8px; }
+  .airspace-map-wrap canvas { width: 100%; height: 100%; display: block; }
+  .airspace-stats { display: flex; gap: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-dim); margin-bottom: 8px; }
+  .airspace-stats .val { color: var(--accent-cyan); }
+  .airspace-stats .iss-val { color: var(--iss-color); }
+  .iss-info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: rgba(255,85,0,0.06); border: 1px solid rgba(255,85,0,0.15); border-radius: 6px; margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+  .aircraft-mini-list { max-height: 80px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .ac-mini { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 3px 6px; border-radius: 4px; }
+  .ac-mini:hover { background: var(--bg-secondary); }
+  .ac-cs { color: var(--accent-cyan); min-width: 65px; }
+  .ac-info { color: var(--text-dim); }
+  .epaper-preview { background: #e8e4d8; border: 2px solid var(--border); border-radius: 8px; height: 120px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .epaper-preview-text { color: #333; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-align: center; }
+  .btn { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; letter-spacing: 1px; text-transform: uppercase; transition: all 0.2s ease; }
+  .btn:hover { border-color: var(--accent-cyan); background: rgba(0,212,255,0.1); }
+  .btn-primary { background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(0,255,136,0.2)); border-color: var(--accent-cyan); }
+  .btn-primary:hover { box-shadow: 0 0 20px var(--satellite-glow); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .activity-log { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .log-entry { display: flex; gap: 12px; padding: 4px 8px; border-radius: 4px; }
+  .log-entry:hover { background: var(--bg-secondary); }
+  .log-time { color: var(--text-dim); white-space: nowrap; }
+  .log-source { width: 70px; font-weight: 500; }
+  .log-source.sat { color: var(--accent-cyan); }
+  .log-source.wx { color: var(--accent-green); }
+  .log-source.mesh { color: var(--accent-amber); }
+  .log-source.air { color: var(--iss-color); }
+  .log-source.sys { color: var(--text-secondary); }
+  .log-msg { color: var(--text-secondary); }
+  .config-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .config-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+  .config-label { color: var(--text-secondary); }
+  .config-value { color: var(--accent-cyan); }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+  ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 2px; }
+  @media (max-width: 1100px) { .dashboard { grid-template-columns: 1fr 1fr; } .card-wide { grid-column: span 2; } }
+  @media (max-width: 650px) { .dashboard { grid-template-columns: 1fr; } .card-wide { grid-column: span 1; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="logo-icon">📡</div>
+    <div>
+      <h1>Neighborhood Intel Station</h1>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-dim);margin-top:2px;letter-spacing:1px;">LEAGUE CITY, TX — 29.4953°N, 95.1547°W</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="clock"></span>
+    <span><span class="status-dot online" id="sdr-dot"></span>SDR Node</span>
+    <span><span class="status-dot online"></span>e-Paper</span>
+    <span><span class="status-dot waiting"></span>Meshtastic</span>
+  </div>
+</div>
+<div class="dashboard">
+  <!-- SATELLITE -->
+  <div class="card card-satellite">
+    <div class="card-header">
+      <span class="card-title">🛰 NOAA Satellite</span>
+      <span class="card-badge badge-waiting" id="sat-badge">WAITING</span>
+    </div>
+    <div class="sat-image-container" id="sat-image-box">
+      <div class="sat-placeholder" id="sat-placeholder">No satellite image yet<br><span style="font-size:0.6rem;color:var(--text-dim);">Waiting for next pass...</span></div>
+    </div>
+    <div class="sat-next-pass">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="color:var(--text-secondary);margin-bottom:4px;">NEXT PASS</div>
+          <div id="sat-next-name" style="color:var(--accent-cyan);">NOAA 19</div>
+          <div id="sat-next-time" style="color:var(--text-dim);font-size:0.65rem;">03:17 UTC — 9:17 PM CST</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:var(--text-secondary);margin-bottom:4px;">COUNTDOWN</div>
+          <div class="sat-countdown" id="sat-countdown">--:--</div>
+          <div id="sat-max-el" style="color:var(--text-dim);font-size:0.65rem;">Max El: 33.8°</div>
+        </div>
+      </div>
+    </div>
+    <div class="sdr-status-line">
+      <div class="sdr-pulse" id="sdr-pulse"></div>
+      <span id="sdr-status-text">📡 SDR IDLE — Waiting for next pass</span>
+    </div>
+  </div>
+  <!-- WEATHER -->
+  <div class="card card-weather">
+    <div class="card-header">
+      <span class="card-title">🌤 Weather Station</span>
+      <span class="card-badge badge-live" id="wx-badge">LIVE</span>
+    </div>
+    <div class="weather-main">
+      <div class="weather-temp" id="wx-temp">--°</div>
+      <div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);" id="wx-condition">Loading...</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-dim);" id="wx-feels">Feels like --°</div>
+      </div>
+    </div>
+    <div class="weather-details">
+      <div class="weather-item"><span class="weather-label">Humidity</span><span class="weather-value" id="wx-humidity">--%</span></div>
+      <div class="weather-item"><span class="weather-label">Wind</span><span class="weather-value" id="wx-wind">-- mph</span></div>
+      <div class="weather-item"><span class="weather-label">Pressure</span><span class="weather-value" id="wx-pressure">-- inHg</span></div>
+      <div class="weather-item"><span class="weather-label">Dew Point</span><span class="weather-value" id="wx-dewpoint">--°F</span></div>
+      <div class="weather-item"><span class="weather-label">Rain Today</span><span class="weather-value" id="wx-rain">--"</span></div>
+      <div class="weather-item"><span class="weather-label">UV Index</span><span class="weather-value" id="wx-uv">--</span></div>
+      <div class="weather-item"><span class="weather-label">Solar Rad</span><span class="weather-value" id="wx-solar">-- W/m²</span></div>
+      <div class="weather-item"><span class="weather-label">Indoor</span><span class="weather-value" id="wx-indoor">--°F</span></div>
+    </div>
+    <div class="config-section">
+      <div class="config-row"><span class="config-label">Station</span><span class="config-value">WS-2902</span></div>
+      <div class="config-row"><span class="config-label">Last Update</span><span class="config-value" id="wx-updated">--</span></div>
+    </div>
+  </div>
+  <!-- MESHTASTIC -->
+  <div class="card card-mesh">
+    <div class="card-header">
+      <span class="card-title">📻 Meshtastic Mesh</span>
+      <span class="card-badge badge-waiting" id="mesh-badge">1 NODE</span>
+    </div>
+    <ul class="mesh-nodes" id="mesh-nodes">
+      <li class="mesh-node"><span class="mesh-node-name">Danimal (Danl)</span><span class="mesh-node-info">Heltec V4 — 76%</span></li>
+    </ul>
+    <div style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-dim);">
+      <div style="margin-bottom:8px;">Recent Messages:</div>
+      <div id="mesh-messages" style="max-height:60px;overflow-y:auto;color:var(--text-secondary);"><div>No messages yet</div></div>
+    </div>
+    <div class="mesh-message-box">
+      <input class="mesh-input" id="mesh-input" placeholder="Send message to mesh..." />
+      <button class="btn" onclick="sendMeshMessage()">Send</button>
+    </div>
+  </div>
+  <!-- AIRSPACE & ISS -->
+  <div class="card card-airspace">
+    <div class="card-header">
+      <span class="card-title">✈ Airspace & ISS</span>
+      <span class="card-badge badge-iss" id="air-badge">TRACKING</span>
+    </div>
+    <div class="airspace-stats">
+      <span>Aircraft: <span class="val" id="ac-count">--</span></span>
+      <span>ISS: <span class="iss-val" id="iss-dist-small">--</span> km</span>
+      <span>Crew: <span class="iss-val" id="iss-crew-count">--</span></span>
+    </div>
+    <div class="airspace-map-wrap">
+      <canvas id="airspace-canvas"></canvas>
+    </div>
+    <div class="iss-info-row">
+      <span style="color:var(--iss-color);font-weight:500;">🛸 ISS</span>
+      <span id="iss-pos" style="color:var(--text-secondary);font-size:0.65rem;">--°, --°</span>
+      <span id="iss-dist-big" style="color:var(--iss-color);font-weight:700;">-- km</span>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--text-dim);margin:4px 0;">NEARBY AIRCRAFT</div>
+    <div class="aircraft-mini-list" id="ac-list">
+      <div class="ac-mini"><span class="ac-info">Connecting to backend...</span></div>
+    </div>
+  </div>
+  <!-- E-PAPER -->
+  <div class="card card-epaper">
+    <div class="card-header">
+      <span class="card-title">🖥 e-Paper Display</span>
+      <span class="card-badge badge-live" id="epaper-badge">CONNECTED</span>
+    </div>
+    <div class="epaper-preview">
+      <div class="epaper-preview-text">Waveshare 7.3" 6-Color<br>800×480 — Last pushed: <span id="epaper-last">--</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="pushToEpaper('dashboard')">Push Dashboard</button>
+      <button class="btn" onclick="pushToEpaper('satellite')">Push Sat Image</button>
+      <button class="btn" onclick="pushToEpaper('weather')">Push Weather</button>
+    </div>
+    <div class="config-section">
+      <div class="config-row"><span class="config-label">Node IP</span><span class="config-value">192.168.1.220</span></div>
+      <div class="config-row"><span class="config-label">Refresh Time</span><span class="config-value">~25 sec</span></div>
+    </div>
+  </div>
+  <!-- SYSTEM STATUS -->
+  <div class="card card-alerts">
+    <div class="card-header">
+      <span class="card-title">⚡ System Status</span>
+      <span class="card-badge badge-live" id="sys-badge">NOMINAL</span>
+    </div>
+    <div class="config-row"><span class="config-label">SDR Node</span><span class="config-value">192.168.1.192 <span class="status-dot online" id="sdr-sys-dot"></span></span></div>
+    <div class="config-row"><span class="config-label">e-Paper Node</span><span class="config-value">192.168.1.220 <span class="status-dot online"></span></span></div>
+    <div class="config-row"><span class="config-label">RTL-SDR</span><span class="config-value">Blog V4 — R828D</span></div>
+    <div class="config-row"><span class="config-label">Antenna</span><span class="config-value">V-Dipole 137MHz</span></div>
+    <div class="config-row"><span class="config-label">Meshtastic</span><span class="config-value">Heltec V4 — USB</span></div>
+    <div class="config-row"><span class="config-label">Weather</span><span class="config-value">WS-2902 — API</span></div>
+    <div class="config-row"><span class="config-label">Backend</span><span class="config-value" id="backend-status">Checking...</span></div>
+    <div class="config-section">
+      <div class="btn-row">
+        <button class="btn" onclick="refreshAll()">Refresh All</button>
+        <button class="btn" onclick="updateTLE()">Update TLE</button>
+      </div>
+    </div>
+  </div>
+  <!-- ACTIVITY LOG -->
+  <div class="card card-wide" style="border-top:2px solid var(--border);">
+    <div class="card-header">
+      <span class="card-title">📋 Activity Log</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--text-dim);">LIVE FEED</span>
+    </div>
+    <div class="activity-log" id="activity-log">
+      <div class="log-entry"><span class="log-time">--:--:--</span><span class="log-source sys">SYSTEM</span><span class="log-msg">Initializing...</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CONFIG = {
+  weather: {
+    apiKey: 'ea6f024843dd42c39e23c3484016fdafd203909dae1a40e5811aa1db33f2bc7b',
+    appKey: 'dea6391c2ada481389e3d7eec5d3598f2c8da4d8a19c48bda824b8b40c0c9489',
+    pollInterval: 300000
+  },
+  backend: { url: 'http://192.168.1.45:5000', pollInterval: 5000 },
+  sdr: { host: '192.168.1.192', user: 'mem' },
+  epaper: { host: '192.168.1.220', user: 'epaper' },
+  home: { lat: 29.4953, lon: -95.1547 },
+  nextPass: { satellite: 'NOAA 19', utcTime: '2026-02-17T03:17:31Z', maxEl: 33.8 }
+};
+const MAP = { latMin: 28.5, latMax: 30.5, lonMin: -96.5, lonMax: -93.5 };
+let backendOnline = false, issData = {lat:0,lon:0}, aircraftData = [], crewData = [];
+
+// CLOCK
+function updateClock() {
+  const now = new Date();
+  const cst = now.toLocaleString('en-US',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const utc = now.toISOString().substring(11,19);
+  document.getElementById('clock').textContent = `CST ${cst} | UTC ${utc}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// COUNTDOWN
+function updateCountdown() {
+  const now = new Date(), passTime = new Date(CONFIG.nextPass.utcTime), diff = passTime - now;
+  if (diff <= 0 && diff > -960000) {
+    document.getElementById('sat-countdown').textContent = 'NOW!';
+    document.getElementById('sat-badge').textContent = 'RECORDING';
+    document.getElementById('sat-badge').className = 'card-badge badge-live';
+    document.getElementById('sdr-status-text').textContent = '📡 SDR RECORDING — Capturing satellite signal...';
+    document.getElementById('sdr-pulse').style.background = 'var(--accent-green)';
+    return;
+  }
+  if (diff <= 0) { document.getElementById('sat-countdown').textContent = 'PASSED'; return; }
+  const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
+  let d = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+  document.getElementById('sat-countdown').textContent = d;
+  if (diff < 120000) {
+    document.getElementById('sdr-status-text').textContent = '📡 SDR ARMED — Capture in ' + d;
+    document.getElementById('sat-badge').textContent = 'ARMED';
+    document.getElementById('sat-badge').className = 'card-badge badge-iss';
+  }
+}
+setInterval(updateCountdown, 1000); updateCountdown();
+
+// WEATHER
+async function fetchWeather() {
+  try {
+    const url = `https://rt.ambientweather.net/v1/devices?apiKey=${CONFIG.weather.apiKey}&applicationKey=${CONFIG.weather.appKey}`;
+    const r = await fetch(url); const data = await r.json();
+    if (data && data.length > 0) {
+      const wx = data[0].lastData;
+      document.getElementById('wx-temp').textContent = `${Math.round(wx.tempf)}°`;
+      document.getElementById('wx-feels').textContent = `Feels like ${Math.round(wx.feelsLike)}°`;
+      document.getElementById('wx-humidity').textContent = `${wx.humidity}%`;
+      document.getElementById('wx-wind').textContent = `${wx.windspeedmph} mph`;
+      document.getElementById('wx-pressure').textContent = `${wx.baromrelin.toFixed(2)} inHg`;
+      document.getElementById('wx-dewpoint').textContent = `${Math.round(wx.dewPoint)}°F`;
+      document.getElementById('wx-rain').textContent = `${wx.dailyrainin}"`;
+      document.getElementById('wx-uv').textContent = wx.uv;
+      document.getElementById('wx-solar').textContent = `${wx.solarradiation} W/m²`;
+      document.getElementById('wx-indoor').textContent = `${Math.round(wx.tempinf)}°F`;
+      let cond = 'Clear';
+      if (wx.hourlyrainin > 0) cond = '🌧 Raining';
+      else if (wx.humidity > 90) cond = '🌫 Foggy';
+      else if (wx.windspeedmph > 15) cond = '💨 Windy';
+      else if (wx.uv > 6) cond = '☀️ Sunny';
+      else if (wx.solarradiation > 0) cond = '🌤 Partly Cloudy';
+      else cond = '🌙 Clear Night';
+      document.getElementById('wx-condition').textContent = cond;
+      document.getElementById('wx-updated').textContent = new Date(wx.dateutc).toLocaleTimeString('en-US',{timeZone:'America/Chicago'});
+      addLog('wx', `Updated: ${Math.round(wx.tempf)}°F, ${wx.humidity}% humidity`);
+    }
+  } catch (err) {
+    addLog('sys', `Weather error: ${err.message}`);
+    document.getElementById('wx-badge').className = 'card-badge badge-offline';
+    document.getElementById('wx-badge').textContent = 'ERROR';
+  }
+}
+
+// BACKEND
+async function fetchBackend() {
+  try {
+    const r = await fetch(`${CONFIG.backend.url}/api/status`, {signal: AbortSignal.timeout(4000)});
+    const data = await r.json();
+    backendOnline = true;
+    document.getElementById('backend-status').innerHTML = 'Online <span class="status-dot online"></span>';
+    issData = data.iss || issData;
+    crewData = data.iss_crew || crewData;
+    document.getElementById('iss-pos').textContent = `${issData.lat.toFixed(2)}°, ${issData.lon.toFixed(2)}°`;
+    document.getElementById('iss-dist-big').textContent = `${data.iss_distance_km} km`;
+    document.getElementById('iss-dist-small').textContent = data.iss_distance_km;
+    document.getElementById('iss-crew-count').textContent = crewData.length;
+    if (data.iss_distance_km < 2000) {
+      document.getElementById('air-badge').textContent = 'ISS NEARBY!';
+      document.getElementById('air-badge').style.animation = 'blink 0.8s infinite';
+    }
+    aircraftData = data.aircraft || [];
+    document.getElementById('ac-count').textContent = aircraftData.length;
+    const sorted = [...aircraftData].sort((a,b) =>
+      Math.hypot(a.lat-CONFIG.home.lat,a.lon-CONFIG.home.lon) - Math.hypot(b.lat-CONFIG.home.lat,b.lon-CONFIG.home.lon));
+    document.getElementById('ac-list').innerHTML = sorted.slice(0,12).map(ac => `
+      <div class="ac-mini"><span class="ac-cs">${ac.callsign||ac.icao24}</span><span class="ac-info">${ac.alt_ft.toLocaleString()} ft</span><span class="ac-info">${ac.velocity_kt} kt</span><span class="ac-info">${Math.round(ac.heading)}°</span></div>
+    `).join('') || '<div class="ac-mini"><span class="ac-info">No aircraft</span></div>';
+    const sdrTexts = {sleeping:'📡 SDR IDLE — Waiting for next pass',armed:'📡 SDR ARMED — Capture imminent!',recording:'📡 SDR RECORDING — Capturing signal...',running:'📡 SDR ACTIVE — Scheduler running',offline:'📡 SDR OFFLINE',unreachable:'📡 SDR UNREACHABLE'};
+    if (data.sdr_status) {
+      document.getElementById('sdr-status-text').textContent = sdrTexts[data.sdr_status] || '📡 ' + data.sdr_status;
+      if (data.sdr_status === 'recording') document.getElementById('sdr-pulse').style.background = 'var(--accent-green)';
+      else if (data.sdr_status === 'offline' || data.sdr_status === 'unreachable') {
+        document.getElementById('sdr-pulse').style.background = 'var(--accent-red)';
+        document.getElementById('sdr-dot').className = 'status-dot offline';
+      }
+    }
+    drawAirspaceMap();
+  } catch (err) {
+    backendOnline = false;
+    document.getElementById('backend-status').innerHTML = 'Offline <span class="status-dot offline"></span>';
+    generateDemoData();
+    drawAirspaceMap();
+  }
+}
+
+function generateDemoData() {
+  if (aircraftData.length === 0) {
+    const al = ['UAL','SWA','AAL','DAL','SKW','JBU','NKS','FFT'];
+    for (let i=0;i<20;i++) aircraftData.push({
+      icao24: Math.random().toString(16).substr(2,6),
+      callsign: al[Math.floor(Math.random()*al.length)]+Math.floor(Math.random()*9000+1000),
+      lat: CONFIG.home.lat+(Math.random()-0.5)*2, lon: CONFIG.home.lon+(Math.random()-0.5)*3,
+      alt_ft: Math.floor(Math.random()*40000+1000), velocity_kt: Math.floor(Math.random()*400+100),
+      heading: Math.floor(Math.random()*360), on_ground: false
+    });
+  }
+  const t = Date.now()/50000;
+  issData.lat = 29+Math.sin(t)*12; issData.lon = -95+Math.cos(t)*18;
+  if (!crewData.length) crewData = [{name:'Oleg Kononenko'},{name:'Nikolai Chub'},{name:'Tracy Dyson'},{name:'Matthew Dominick'},{name:'Mike Barratt'},{name:'Jeanette Epps'},{name:'Alexander Grebenkin'}];
+  const dist = Math.round(Math.hypot(issData.lat-CONFIG.home.lat,issData.lon-CONFIG.home.lon)*111);
+  document.getElementById('iss-pos').textContent = `${issData.lat.toFixed(2)}°, ${issData.lon.toFixed(2)}°`;
+  document.getElementById('iss-dist-big').textContent = `${dist} km`;
+  document.getElementById('iss-dist-small').textContent = dist;
+  document.getElementById('iss-crew-count').textContent = crewData.length;
+  document.getElementById('ac-count').textContent = aircraftData.length;
+  document.getElementById('air-badge').textContent = `${aircraftData.length} DEMO`;
+  const sorted = [...aircraftData].sort((a,b) => Math.hypot(a.lat-CONFIG.home.lat,a.lon-CONFIG.home.lon)-Math.hypot(b.lat-CONFIG.home.lat,b.lon-CONFIG.home.lon));
+  document.getElementById('ac-list').innerHTML = sorted.slice(0,12).map(ac => `
+    <div class="ac-mini"><span class="ac-cs">${ac.callsign}</span><span class="ac-info">${ac.alt_ft.toLocaleString()} ft</span><span class="ac-info">${ac.velocity_kt} kt</span></div>
+  `).join('');
+}
+
+// AIRSPACE MAP
+function drawAirspaceMap() {
+  const canvas = document.getElementById('airspace-canvas');
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth*2; canvas.height = wrap.clientHeight*2;
+  const ctx = canvas.getContext('2d'); ctx.scale(2,2);
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  function toXY(lat,lon) { return { x:((lon-MAP.lonMin)/(MAP.lonMax-MAP.lonMin))*w, y:((MAP.latMax-lat)/(MAP.latMax-MAP.latMin))*h }; }
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle = 'rgba(30,42,58,0.5)'; ctx.lineWidth = 0.5; ctx.font = '7px JetBrains Mono';
+  for (let lat=Math.ceil(MAP.latMin);lat<=MAP.latMax;lat++) { const p=toXY(lat,MAP.lonMin); ctx.beginPath();ctx.moveTo(0,p.y);ctx.lineTo(w,p.y);ctx.stroke(); ctx.fillStyle='#2a3444';ctx.fillText(`${lat}°N`,3,p.y-2); }
+  for (let lon=Math.ceil(MAP.lonMin);lon<=MAP.lonMax;lon++) { const p=toXY(MAP.latMax,lon); ctx.beginPath();ctx.moveTo(p.x,0);ctx.lineTo(p.x,h);ctx.stroke(); ctx.fillStyle='#2a3444';ctx.fillText(`${Math.abs(lon)}°W`,p.x+2,h-3); }
+  ctx.strokeStyle='rgba(0,212,255,0.15)';ctx.lineWidth=1;
+  const coast=[[29.7,-93.8],[29.55,-94.35],[29.5,-94.5],[29.3,-94.7],[29.0,-95.0],[28.8,-95.3],[28.6,-96.0],[28.5,-96.5]];
+  ctx.beginPath(); coast.forEach((p,i)=>{const xy=toXY(p[0],p[1]);i===0?ctx.moveTo(xy.x,xy.y):ctx.lineTo(xy.x,xy.y);}); ctx.stroke();
+  ctx.fillStyle='rgba(0,50,80,0.12)';ctx.beginPath();coast.forEach((p,i)=>{const xy=toXY(p[0],p[1]);i===0?ctx.moveTo(xy.x,xy.y):ctx.lineTo(xy.x,xy.y);});ctx.lineTo(w,h);ctx.lineTo(w,0);const f=toXY(coast[0][0],coast[0][1]);ctx.lineTo(f.x,f.y);ctx.fill();
+  const cities=[{n:'HOUSTON',lat:29.76,lon:-95.37},{n:'GALVESTON',lat:29.30,lon:-94.80},{n:'LEAGUE CITY',lat:29.50,lon:-95.10},{n:'IAH',lat:29.98,lon:-95.34},{n:'HOU',lat:29.65,lon:-95.28}];
+  cities.forEach(c=>{const p=toXY(c.lat,c.lon);const home=c.n==='LEAGUE CITY';ctx.fillStyle=home?'rgba(0,255,136,0.6)':'rgba(122,139,163,0.3)';ctx.font=home?'bold 8px JetBrains Mono':'7px JetBrains Mono';ctx.fillText(c.n,p.x+6,p.y+3);ctx.fillStyle=home?'#00ff88':'rgba(122,139,163,0.3)';ctx.beginPath();ctx.arc(p.x,p.y,home?3:2,0,Math.PI*2);ctx.fill();if(home){ctx.strokeStyle='rgba(0,255,136,0.08)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.arc(p.x,p.y,60,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}});
+  aircraftData.forEach(ac=>{const p=toXY(ac.lat,ac.lon);if(p.x<-10||p.x>w+10||p.y<-10||p.y>h+10)return;let col='#00d4ff';if(ac.on_ground)col='#4a5568';else if(ac.alt_ft<5000)col='#ffb800';else if(ac.alt_ft<15000)col='#00ff88';else if(ac.alt_ft>30000)col='#8855ff';const rad=((ac.heading||0)-90)*Math.PI/180;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(rad);ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(-3,-2.5);ctx.lineTo(-3,2.5);ctx.closePath();ctx.fill();ctx.restore();if(ac.callsign){ctx.fillStyle='rgba(0,212,255,0.6)';ctx.font='6px JetBrains Mono';ctx.fillText(ac.callsign,p.x+6,p.y-3);}});
+  if(issData.lat!==0||issData.lon!==0){const ip=toXY(issData.lat,issData.lon);if(ip.x>-40&&ip.x<w+40&&ip.y>-40&&ip.y<h+40){const g=ctx.createRadialGradient(ip.x,ip.y,0,ip.x,ip.y,20);g.addColorStop(0,'rgba(255,85,0,0.35)');g.addColorStop(1,'rgba(255,85,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(ip.x,ip.y,20,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff5500';ctx.fillRect(ip.x-10,ip.y-1.5,20,3);ctx.fillRect(ip.x-2,ip.y-6,4,12);ctx.beginPath();ctx.arc(ip.x,ip.y,2.5,0,Math.PI*2);ctx.fill();ctx.font='bold 8px JetBrains Mono';ctx.fillText('ISS',ip.x+14,ip.y-4);}}
+}
+
+// E-PAPER
+async function pushToEpaper(mode) {
+  addLog('sys',`Pushing ${mode} to e-Paper...`);
+  if(!backendOnline){addLog('sys','Backend offline — cannot push');return;}
+  try{const r=await fetch(`${CONFIG.backend.url}/api/push/${mode}`,{method:'POST'});const d=await r.json();
+  if(d.success){addLog('sys',`e-Paper updated: ${mode}`);document.getElementById('epaper-last').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago'});}
+  else addLog('sys',`Push failed: ${d.error}`);}catch(e){addLog('sys',`Push error: ${e.message}`);}
+}
+function sendMeshMessage(){const i=document.getElementById('mesh-input');const m=i.value.trim();if(!m)return;addLog('mesh',`Sent: "${m}"`);i.value='';}
+function updateTLE(){addLog('sat','TLE update requested...');}
+function refreshAll(){addLog('sys','Manual refresh');fetchWeather();fetchBackend();}
+function addLog(src,msg){const log=document.getElementById('activity-log');const t=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour12:false});const labels={sat:'NOAA',wx:'WEATHER',mesh:'MESH',air:'AIRSPACE',sys:'SYSTEM'};const e=document.createElement('div');e.className='log-entry';e.innerHTML=`<span class="log-time">${t}</span><span class="log-source ${src}">${labels[src]||src}</span><span class="log-msg">${msg}</span>`;log.insertBefore(e,log.firstChild);while(log.children.length>50)log.removeChild(log.lastChild);}
+
+// INIT
+addLog('sys','Neighborhood Intel Station online');
+addLog('sys','SDR Node: mem@192.168.1.192 — RTL-SDR Blog V4');
+addLog('sys','e-Paper Node: epaper@192.168.1.220');
+addLog('mesh','Meshtastic: Heltec V4 (Danimal)');
+addLog('sat',`Next pass: ${CONFIG.nextPass.satellite} at ${CONFIG.nextPass.utcTime}`);
+fetchWeather(); setInterval(fetchWeather, CONFIG.weather.pollInterval);
+fetchBackend(); setInterval(fetchBackend, CONFIG.backend.pollInterval);
+window.addEventListener('resize', drawAirspaceMap);
+</script>
+</body>
+</html>
