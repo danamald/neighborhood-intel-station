@@ -298,6 +298,7 @@
       <button class="btn btn-primary" onclick="pushToEpaper('dashboard')">Push Dashboard</button>
       <button class="btn" onclick="pushToEpaper('satellite')">Push Sat Image</button>
       <button class="btn" onclick="pushToEpaper('weather')">Push Weather</button>
+      <button class="btn" id="btn-random" onclick="toggleRandom()">Push Random</button>
     </div>
     <div class="config-section">
       <div class="config-row"><span class="config-label">Node IP</span><span class="config-value">192.168.1.220</span></div>
@@ -513,10 +514,39 @@ function drawAirspaceMap() {
 // E-PAPER
 async function pushToEpaper(mode) {
   addLog('sys',`Pushing ${mode} to e-Paper...`);
+  // Any non-random push resets the random button
+  if(mode !== 'random') {
+    document.getElementById('btn-random').textContent = 'Push Random';
+    document.getElementById('btn-random').style.background = '';
+  }
   if(!backendOnline){addLog('sys','Backend offline — cannot push');return;}
   try{const r=await fetch(`${CONFIG.backend.url}/api/push/${mode}`,{method:'POST'});const d=await r.json();
   if(d.success){addLog('sys',`e-Paper updated: ${mode}`);document.getElementById('epaper-last').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago'});}
   else addLog('sys',`Push failed: ${d.error}`);}catch(e){addLog('sys',`Push error: ${e.message}`);}
+}
+let randomActive = false;
+async function toggleRandom() {
+  if(!backendOnline){addLog('sys','Backend offline — cannot push');return;}
+  try {
+    const r = await fetch(`${CONFIG.backend.url}/api/push/random`,{method:'POST'});
+    const d = await r.json();
+    if(d.success) {
+      randomActive = !randomActive;
+      const btn = document.getElementById('btn-random');
+      if(randomActive) {
+        btn.textContent = 'Stop Random';
+        btn.style.background = 'var(--accent-red, #ff4444)';
+        addLog('sys', `Slideshow: ${d.message}`);
+      } else {
+        btn.textContent = 'Push Random';
+        btn.style.background = '';
+        addLog('sys', 'Slideshow stopped');
+      }
+      document.getElementById('epaper-last').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago'});
+    } else {
+      addLog('sys', `Random failed: ${d.error}`);
+    }
+  } catch(e) { addLog('sys', `Random error: ${e.message}`); }
 }
 function sendMeshMessage(){const i=document.getElementById('mesh-input');const m=i.value.trim();if(!m)return;addLog('mesh',`Sent: "${m}"`);i.value='';}
 function updateTLE(){addLog('sat','TLE update requested...');}
